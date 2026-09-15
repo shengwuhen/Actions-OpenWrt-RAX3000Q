@@ -10,6 +10,27 @@
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
 
-./scripts/config --module PACKAGE_iptables-mod-tproxy
-./scripts/config --module PACKAGE_iptables-mod-iprange
-./scripts/config --module PACKAGE_iptables-mod-conntrack-extra
+set -euo pipefail
+
+packages=(
+	iptables-mod-tproxy
+	iptables-mod-iprange
+	iptables-mod-conntrack-extra
+)
+
+for package in "${packages[@]}"; do
+	symbol="CONFIG_PACKAGE_${package}"
+	sed -i -e "/^${symbol}=/d" -e "/^# ${symbol} is not set$/d" .config
+	printf '%s=m\n' "$symbol" >> .config
+done
+
+# Resolve package dependencies before the expensive download and build steps.
+make defconfig
+
+for package in "${packages[@]}"; do
+	grep -qx "CONFIG_PACKAGE_${package}=m" .config
+done
+
+for package in ipt-tproxy ipt-iprange ipt-conntrack-extra; do
+	grep -Eq "^CONFIG_PACKAGE_kmod-${package}=(m|y)$" .config
+done
