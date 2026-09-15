@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+openwrt/
+phase-b-results/
+artifacts/
+*.bin
+*.img
+*.ipk
+*.tar.gz
+*.tar.xz
+*.ubi
+*.ubifs

@@ -25,6 +25,16 @@ on:
 env:
   REPO_URL: https://github.com/kkstone/immortalwrt-ipq50xx
   REPO_BRANCH: openwrt-21.02
+  REPO_COMMIT: e1ea5628d486979252a5dd7e507f335381b3ed59
+  GOLANG_COMMIT: 17077f28edf4f18be1cb490253e76e7f14876459
+  NODE_COMMIT: 01cf77b516b7cd4cef84a667415544350e4c2501
+  NATMAP_COMMIT: 7cb0c183a9e98f71366c462f9a38c13246003764
+  DDNS_GO_COMMIT: 03d8b9d71b5e27972e4111ebe39898d093544c92
+  FRP_COMMIT: 5c4151039612910a89f082967842c387d1d972e3
+  PASSWALL_REPO: https://github.com/Openwrt-Passwall/openwrt-passwall.git
+  PASSWALL_COMMIT: 92714cdb2eb613fbab195f8b6005b9b1d9843294
+  PASSWALL_PACKAGES_REPO: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git
+  PASSWALL_PACKAGES_COMMIT: e73ad1c77a96fdaa498807ff7bc717dc92c349ea
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -87,6 +97,8 @@ jobs:
       run: |
         df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
+        git -C openwrt checkout --detach $REPO_COMMIT
+        test "$(git -C openwrt rev-parse HEAD)" = "$REPO_COMMIT"
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Enable build ccache
@@ -111,35 +123,59 @@ jobs:
         cd openwrt
         rm -rf feeds/packages/lang/golang
         git clone https://github.com/kenzok8/golang -b 1.25 feeds/packages/lang/golang
+        git -C feeds/packages/lang/golang checkout --detach $GOLANG_COMMIT
+        test "$(git -C feeds/packages/lang/golang rev-parse HEAD)" = "$GOLANG_COMMIT"
 
     - name: Fix nodejs version
       run: |
         cd openwrt
         rm -rf feeds/packages/lang/node
         git clone https://github.com/sbwml/feeds_packages_lang_node-prebuilt -b packages-24.10 feeds/packages/lang/node
+        git -C feeds/packages/lang/node checkout --detach $NODE_COMMIT
+        test "$(git -C feeds/packages/lang/node rev-parse HEAD)" = "$NODE_COMMIT"
 
     - name: Install feeds
       run: cd openwrt && ./scripts/feeds install -a
+
+    - name: Integrate PassWall 26.9.9
+      run: |
+        cd openwrt
+        rm -rf package/feeds/luci/luci-app-passwall
+
+        git clone --filter=blob:none --no-checkout "$PASSWALL_REPO" package/passwall
+        git -C package/passwall checkout --detach "$PASSWALL_COMMIT"
+        test "$(git -C package/passwall rev-parse HEAD)" = "$PASSWALL_COMMIT"
+
+        git clone --filter=blob:none --no-checkout "$PASSWALL_PACKAGES_REPO" package/passwall-packages
+        git -C package/passwall-packages sparse-checkout init --cone
+        git -C package/passwall-packages sparse-checkout set \
+          chinadns-ng dns2socks ipt2socks microsocks tcping
+        git -C package/passwall-packages checkout --detach "$PASSWALL_PACKAGES_COMMIT"
+        test "$(git -C package/passwall-packages rev-parse HEAD)" = "$PASSWALL_PACKAGES_COMMIT"
+
+        patch_file="$GITHUB_WORKSPACE/patches/passwall/0001-compat-iptables-legacy-packaging.patch"
+        git -C package/passwall apply --check "$patch_file"
+        git -C package/passwall apply "$patch_file"
 
     - name: Upgrade some network software version
       run: |
         cd openwrt
 
         rm -rf feeds/packages/net/natmap
-        wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/natmap/
-        cp -rf cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/natmap feeds/packages/net/natmap/
+        wget -r --no-parent "https://cdn.jsdelivr.net/gh/immortalwrt/packages@$NATMAP_COMMIT/net/natmap/"
+        cp -rf "cdn.jsdelivr.net/gh/immortalwrt/packages@$NATMAP_COMMIT/net/natmap" feeds/packages/net/natmap/
         rm -rf cdn.jsdelivr.net
         find feeds/packages/net/natmap -name index.html -exec rm {} \;
 
         rm -rf feeds/packages/net/ddns-go
-        wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/ddns-go/
-        cp -rf cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/ddns-go feeds/packages/net/ddns-go/
+        wget -r --no-parent "https://cdn.jsdelivr.net/gh/immortalwrt/packages@$DDNS_GO_COMMIT/net/ddns-go/"
+        cp -rf "cdn.jsdelivr.net/gh/immortalwrt/packages@$DDNS_GO_COMMIT/net/ddns-go" feeds/packages/net/ddns-go/
         rm -rf cdn.jsdelivr.net
         find feeds/packages/net/ddns-go -name index.html -exec rm {} \;    
 
         rm -rf feeds/packages/net/frp
-        wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/frp/
-        cp -rf cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/frp feeds/packages/net/frp/
+        wget -r --no-parent "https://cdn.jsdelivr.net/gh/immortalwrt/packages@$FRP_COMMIT/net/frp/"
+        cp -rf "cdn.jsdelivr.net/gh/immortalwrt/packages@$FRP_COMMIT/net/frp" feeds/packages/net/frp/
         rm -rf cdn.jsdelivr.net
         find feeds/packages/net/frp -name index.html -exec rm {} \; 
 

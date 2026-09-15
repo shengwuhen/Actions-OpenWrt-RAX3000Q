@@ -1,0 +1,67 @@
+From: RAX3000QY build compatibility layer
+Subject: [PATCH] passwall: support combined iptables packages in 21.02
+
+Applies to luci-app-passwall 26.9.9-1 at commit
+92714cdb2eb613fbab195f8b6005b9b1d9843294.
+
+The pinned ImmortalWrt 21.02 iptables recipe has no independent
+iptables-mod-socket package. Its real iptables-mod-tproxy package contains
+both libxt_socket.so and libxt_TPROXY.so and depends on the kernel package
+that contains the matching socket and TPROXY modules. Remove only the
+invalid package selection. At runtime, accept the combined package only
+when its installed-package record and the non-empty socket extension both
+exist. An independent installed iptables-mod-socket remains accepted.
+
+The same 21.02 recipe has no iptables-zz-legacy split package: its iptables
+package directly installs the legacy implementation. Remove that invalid
+selection; PassWall already resolves iptables-legacy first and iptables as
+the fallback at runtime.
+
+This patch does not add, provide, or emulate iptables-mod-socket, and does
+not change iptables or kernel ABI. Stop applying it when the target tree
+gains the independent package splits or when the pinned PassWall context
+changes. The build runs git apply --check first so a context mismatch is a
+hard failure.
+
+---
+ luci-app-passwall/Makefile                         |  2 --
+ luci-app-passwall/root/usr/share/passwall/app.sh   |  9 ++++++++-
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/luci-app-passwall/Makefile b/luci-app-passwall/Makefile
+index c588eca..1ef60d6 100644
+--- a/luci-app-passwall/Makefile
++++ b/luci-app-passwall/Makefile
+@@ -46,10 +46,8 @@ config PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy
+ 	select PACKAGE_ipset
+ 	select PACKAGE_ipt2socks
+ 	select PACKAGE_iptables
+-	select PACKAGE_iptables-zz-legacy
+ 	select PACKAGE_iptables-mod-conntrack-extra
+ 	select PACKAGE_iptables-mod-iprange
+-	select PACKAGE_iptables-mod-socket
+ 	select PACKAGE_iptables-mod-tproxy
+ 	select PACKAGE_kmod-ipt-nat
+ 	default y if ! PACKAGE_firewall4
+diff --git a/luci-app-passwall/root/usr/share/passwall/app.sh b/luci-app-passwall/root/usr/share/passwall/app.sh
+index 76e9fbd..abf6351 100755
+--- a/luci-app-passwall/root/usr/share/passwall/app.sh
++++ b/luci-app-passwall/root/usr/share/passwall/app.sh
+@@ -51,7 +51,14 @@ check_run_environment() {
+ 		[ -d "/lib/apk/packages" ] && { file_path="/lib/apk/packages"; file_ext=".list"; }
+ 
+ 		if [ "$USE_TABLES" = "iptables" ]; then
+-			dep_list="iptables-mod-tproxy iptables-mod-socket iptables-mod-iprange iptables-mod-conntrack-extra kmod-ipt-nat"
++			dep_list="iptables-mod-tproxy iptables-mod-iprange iptables-mod-conntrack-extra kmod-ipt-nat"
++			local socket_lib="/usr/lib/iptables/libxt_socket.so"
++			local socket_package="${file_path}/iptables-mod-socket${file_ext}"
++			local tproxy_package="${file_path}/iptables-mod-tproxy${file_ext}"
++			if [ ! -s "$socket_lib" ] || \
++				{ [ ! -s "$socket_package" ] && [ ! -s "$tproxy_package" ]; }; then
++				echolog "警告：iptables 透明代理缺失基础能力 socket！"
++			fi
+ 		else
+ 			dep_list="kmod-nft-socket kmod-nft-tproxy kmod-nft-nat kmod-nf-reject kmod-nf-reject6"
+ 			nftflag=1
+-- 
+2.51.0
