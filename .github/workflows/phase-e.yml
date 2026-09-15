@@ -16,6 +16,8 @@ env:
   REPO_COMMIT: e1ea5628d486979252a5dd7e507f335381b3ed59
   GOLANG_COMMIT: 17077f28edf4f18be1cb490253e76e7f14876459
   NODE_COMMIT: 01cf77b516b7cd4cef84a667415544350e4c2501
+  FRP_PACKAGES_REPO: https://github.com/immortalwrt/packages.git
+  FRP_PACKAGES_COMMIT: 5c4151039612910a89f082967842c387d1d972e3
   PASSWALL_REPO: https://github.com/Openwrt-Passwall/openwrt-passwall.git
   PASSWALL_COMMIT: 92714cdb2eb613fbab195f8b6005b9b1d9843294
   PASSWALL_PACKAGES_REPO: https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git
@@ -71,6 +73,14 @@ jobs:
           git clone --branch packages-24.10 https://github.com/sbwml/feeds_packages_lang_node-prebuilt feeds/packages/lang/node
           git -C feeds/packages/lang/node checkout --detach "$NODE_COMMIT"
           test "$(git -C feeds/packages/lang/node rev-parse HEAD)" = "$NODE_COMMIT"
+          rm -rf feeds/packages/net/frp "$RUNNER_TEMP/frp-overlay"
+          git clone --filter=blob:none --no-checkout "$FRP_PACKAGES_REPO" "$RUNNER_TEMP/frp-overlay"
+          git -C "$RUNNER_TEMP/frp-overlay" sparse-checkout init --cone
+          git -C "$RUNNER_TEMP/frp-overlay" sparse-checkout set net/frp
+          git -C "$RUNNER_TEMP/frp-overlay" checkout --detach "$FRP_PACKAGES_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/frp-overlay" rev-parse HEAD)" = "$FRP_PACKAGES_COMMIT"
+          cp -a "$RUNNER_TEMP/frp-overlay/net/frp" feeds/packages/net/frp
+          grep -Eq '^PKG_VERSION:?=0\.70\.1$' feeds/packages/net/frp/Makefile
           ./scripts/feeds install -a
 
       - name: Integrate frozen PassWall inputs
@@ -117,6 +127,7 @@ jobs:
             printf 'telephony=%s\n' '920fbc5c0a2e4badf51bceff42e9a1e3eb693462'
             printf 'golang=%s\n' "$GOLANG_COMMIT"
             printf 'node=%s\n' "$NODE_COMMIT"
+            printf 'frp-package=%s\n' "$FRP_PACKAGES_COMMIT"
             printf 'passwall=%s\n' "$PASSWALL_COMMIT"
             printf 'passwall-packages=%s\n' "$PASSWALL_PACKAGES_COMMIT"
             printf 'phase_b_config_sha256=%s\n' "$PHASE_B_CONFIG_SHA256"
