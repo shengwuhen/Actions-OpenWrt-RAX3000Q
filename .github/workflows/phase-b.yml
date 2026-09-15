@@ -135,6 +135,15 @@ jobs:
           wget -O openwrt/dl/linux-5.4-qsdk-11.5.0.5.tar.xz \
             'https://www.dropbox.com/scl/fi/gu7ge6jmefn72ttuop1zs/linux-5.4-qsdk-11.5.0.5.tar.xz?rlkey=tdpq0ye35x290frbh7i8uqrm8&st=jjvegqrr&dl=1'
 
+      - name: Build target toolchain prerequisites
+        working-directory: openwrt
+        run: |
+          set -o pipefail
+          make -j"$(nproc)" tools/install 2>&1 | tee "$GITHUB_WORKSPACE/phase-b-results/build-tools.log" || \
+            make -j1 V=s tools/install 2>&1 | tee -a "$GITHUB_WORKSPACE/phase-b-results/build-tools.log"
+          make -j"$(nproc)" toolchain/install 2>&1 | tee "$GITHUB_WORKSPACE/phase-b-results/build-toolchain.log" || \
+            make -j1 V=s toolchain/install 2>&1 | tee -a "$GITHUB_WORKSPACE/phase-b-results/build-toolchain.log"
+
       - name: Targeted kernel and iptables build
         working-directory: openwrt
         run: |
