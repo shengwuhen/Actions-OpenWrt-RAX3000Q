@@ -9,3 +9,7 @@
 # File name: diy-part2.sh
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
+
+./scripts/config --module PACKAGE_iptables-mod-tproxy
+./scripts/config --module PACKAGE_iptables-mod-iprange
+./scripts/config --module PACKAGE_iptables-mod-conntrack-extra
