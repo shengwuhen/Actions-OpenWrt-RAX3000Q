@@ -17,6 +17,7 @@ enabled_packages=(
 	iptables-mod-iprange
 	iptables-mod-conntrack-extra
 	luci-app-passwall
+	luci-i18n-passwall-zh-cn
 	luci-app-passwall_Iptables_Transparent_Proxy
 )
 
