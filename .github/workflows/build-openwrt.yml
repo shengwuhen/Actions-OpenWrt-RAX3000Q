@@ -11,6 +11,9 @@
 name: Build OpenWrt
 
 on:
+  push:
+    branches:
+      - master
   repository_dispatch:
   workflow_dispatch:
     inputs:
@@ -65,7 +68,7 @@ jobs:
         sudo rm -rf /usr/local/share/powershell
         sudo rm -rf /usr/local/share/chromium
         sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /usr/local/lib/node_modules
+        sudo rm -rf /usr/local/node_modules
         df -h
         sudo -E apt-get -qq update
         sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
