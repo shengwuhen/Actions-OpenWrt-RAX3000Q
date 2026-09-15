@@ -53,27 +53,58 @@ records = {}
 errors = []
 warnings = []
 
+required = {
+    "kernel", "iptables", "iptables-mod-tproxy", "iptables-mod-iprange",
+    "iptables-mod-conntrack-extra", "kmod-ipt-tproxy", "kmod-ipt-iprange",
+    "kmod-ipt-conntrack-extra", "kmod-ipt-raw", "luci-app-passwall",
+    "chinadns-ng", "dns2socks", "ipt2socks", "microsocks", "tcping",
+    "ip-full", "ipset", "dnsmasq-full", "coreutils", "curl",
+}
+
+
+def filename_package(path):
+    return path.name.split("_", 1)[0]
+
+
+def is_related_kmod(name):
+    return re.match(r"kmod-(ipt-|nf-|ip6tables|iptunnel)", name) is not None
+
+
+def is_critical_name(name):
+    return name in required or is_related_kmod(name) or name.startswith("ip6tables")
+
+
+unreadable = {}
+
 for path in root.rglob("*.ipk"):
+    filename_name = filename_package(path)
     try:
         members = tar_members(path, "control")
     except Exception as exc:
-        warnings.append(f"skipped unreadable unrelated IPK {path.name}: {exc}")
+        message = f"control archive unreadable in {path.name}: {exc}"
+        if is_critical_name(filename_name):
+            errors.append(message)
+            unreadable[filename_name] = path
+        else:
+            warnings.append(f"skipped unrelated IPK: {message}")
         continue
     control_name = next((name for name in members if name == "control" or name.endswith("/control")), None)
     if not control_name:
+        message = f"control metadata missing in {path.name}"
+        if is_critical_name(filename_name):
+            errors.append(message)
+            unreadable[filename_name] = path
+        else:
+            warnings.append(f"skipped unrelated IPK: {message}")
         continue
     metadata = fields(members[control_name])
     if "Package" in metadata:
         records[metadata["Package"]] = (path, metadata)
 
-required = {
-    "kernel", "iptables-mod-tproxy", "iptables-mod-iprange",
-    "iptables-mod-conntrack-extra", "kmod-ipt-tproxy", "kmod-ipt-iprange",
-    "kmod-ipt-conntrack-extra", "kmod-ipt-raw", "luci-app-passwall",
-}
 for name in sorted(required):
     if name not in records:
-        errors.append(f"required IPK missing: {name}")
+        if name not in unreadable:
+            errors.append(f"required IPK missing: {name}")
 
 selected = set(required)
 queue = list(required)
@@ -83,12 +114,14 @@ while queue:
         continue
     depends = records[name][1].get("Depends", "")
     for dep in re.findall(r"(?:^|,\s*)([A-Za-z0-9_.+:-]+)", depends):
-        if dep in records and dep not in selected and (dep.startswith("kmod-") or name.startswith("kmod-")):
+        if dep in unreadable and is_related_kmod(dep):
+            errors.append(f"selected dependency control archive unreadable: {dep}")
+        if dep in records and dep not in selected and (is_related_kmod(dep) or name.startswith("kmod-")):
             selected.add(dep)
             queue.append(dep)
 
 for name in records:
-    if re.match(r"kmod-(ipt|nf-|ip6tables)", name):
+    if is_related_kmod(name):
         selected.add(name)
 
 abi_values = set()

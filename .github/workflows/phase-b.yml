@@ -174,7 +174,15 @@ jobs:
       - name: Audit generated IPKs and kernel ABI
         run: |
           mkdir -p phase-b-results/phase-b-packages
-          find openwrt/bin -type f -name '*.ipk' -exec cp -f {} phase-b-results/phase-b-packages/ \;
+          find openwrt/bin -type f -name '*.ipk' -print0 | while IFS= read -r -d '' ipk; do
+            filename="${ipk##*/}"
+            package="${filename%%_*}"
+            case "$package" in
+              kernel|iptables|iptables-mod-tproxy|iptables-mod-iprange|iptables-mod-conntrack-extra|luci-app-passwall|chinadns-ng|dns2socks|ipt2socks|microsocks|tcping|ip-full|ipset|dnsmasq-full|coreutils|curl|kmod-ipt-*|kmod-nf-*|kmod-ip6tables|kmod-iptunnel*|ip6tables*)
+                cp -f "$ipk" phase-b-results/phase-b-packages/
+                ;;
+            esac
+          done
           set +e
           python3 scripts/phase-b-ipk-audit.py \
             --bin phase-b-results/phase-b-packages \
