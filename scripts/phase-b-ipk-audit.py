@@ -10,22 +10,23 @@ import tarfile
 from pathlib import Path
 
 
+def ar_members(path):
+    return subprocess.check_output(["ar", "t", str(path)], text=True).splitlines()
+
+
 def ar_member(path, member):
     return subprocess.check_output(["ar", "p", str(path), member])
 
 
 def tar_members(path, stem):
-    for suffix in (".tar.gz", ".tar.xz", ".tar.zst", ".tar"):
-        member = stem + suffix
-        try:
-            data = ar_member(path, member)
-        except subprocess.CalledProcessError:
-            continue
-        if suffix == ".tar.zst":
-            data = subprocess.check_output(["zstd", "-dc"], input=data)
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
-            return {item.name.lstrip("./"): archive.extractfile(item).read() if item.isfile() else b"" for item in archive.getmembers()}
-    raise RuntimeError(f"no {stem} archive in {path}")
+    member = next((name for name in ar_members(path) if name.startswith(stem + ".tar")), None)
+    if not member:
+        raise RuntimeError(f"no {stem} archive in {path}")
+    data = ar_member(path, member)
+    if member.endswith(".zst"):
+        data = subprocess.check_output(["zstd", "-dc"], input=data)
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
+        return {item.name.lstrip("./"): archive.extractfile(item).read() if item.isfile() else b"" for item in archive.getmembers()}
 
 
 def fields(raw):
@@ -50,9 +51,14 @@ ipk_out = out / "ipks"
 ipk_out.mkdir(parents=True, exist_ok=True)
 records = {}
 errors = []
+warnings = []
 
 for path in root.rglob("*.ipk"):
-    members = tar_members(path, "control")
+    try:
+        members = tar_members(path, "control")
+    except Exception as exc:
+        warnings.append(f"skipped unreadable unrelated IPK {path.name}: {exc}")
+        continue
     control_name = next((name for name in members if name == "control" or name.endswith("/control")), None)
     if not control_name:
         continue
@@ -110,7 +116,11 @@ if any("29c60ca79d7222d34f8490ffe7f3fcd0" in value for value in abi_values):
 def data_names(package):
     if package not in records:
         return set(), {}
-    members = tar_members(records[package][0], "data")
+    try:
+        members = tar_members(records[package][0], "data")
+    except Exception as exc:
+        errors.append(f"{package} data archive unreadable: {exc}")
+        return set(), {}
     return set(members), members
 
 tproxy_names, _ = data_names("iptables-mod-tproxy")
@@ -159,6 +169,8 @@ report += ["", "## PassWall validation", ""]
 report += ["- Version 26.9.9", "- Combined iptables socket compatibility patch present", "- No forbidden hard dependency"] if not any("PassWall" in e for e in errors) else ["- Failed; see errors"]
 report += ["", "## Errors", ""]
 report += [f"- {error}" for error in errors] or ["- None"]
+report += ["", "## Warnings", ""]
+report += [f"- {warning}" for warning in warnings] or ["- None"]
 (out / "IPK-AUDIT.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 (out / "kernel-abi.txt").write_text("\n".join(sorted(abi_values)) + "\n", encoding="utf-8")
 if errors:

@@ -173,9 +173,16 @@ jobs:
 
       - name: Audit generated IPKs and kernel ABI
         run: |
-          python3 scripts/phase-b-ipk-audit.py --bin openwrt/bin --out phase-b-results
+          mkdir -p phase-b-results/phase-b-packages
+          find openwrt/bin -type f -name '*.ipk' -exec cp -f {} phase-b-results/phase-b-packages/ \;
+          set +e
+          python3 scripts/phase-b-ipk-audit.py \
+            --bin phase-b-results/phase-b-packages \
+            --out phase-b-results 2>&1 | tee phase-b-results/ipk-audit.log
+          audit_status=${PIPESTATUS[0]}
           grep -Eina 'warning:|error:|failed|undefined reference' phase-b-results/*.log > phase-b-results/warnings-errors.txt || true
           df -h > phase-b-results/disk-usage.txt
+          exit "$audit_status"
 
       - name: Upload Phase B build evidence
         if: always()
