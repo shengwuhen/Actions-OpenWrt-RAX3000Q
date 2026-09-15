@@ -71,6 +71,7 @@ jobs:
           git clone --branch 1.25 https://github.com/kenzok8/golang feeds/packages/lang/golang
           git -C feeds/packages/lang/golang checkout --detach "$GOLANG_COMMIT"
           test "$(git -C feeds/packages/lang/golang rev-parse HEAD)" = "$GOLANG_COMMIT"
+          ./scripts/feeds install -a
           git clone --filter=blob:none --no-checkout "$PASSWALL_REPO" package/passwall
           git -C package/passwall checkout --detach "$PASSWALL_COMMIT"
           git clone --filter=blob:none --no-checkout "$PASSWALL_PACKAGES_REPO" package/passwall-packages
@@ -83,7 +84,6 @@ jobs:
           rm -rf package/feeds/luci/luci-app-passwall
           git -C package/passwall apply --check "$GITHUB_WORKSPACE/patches/passwall/0001-compat-iptables-legacy-packaging.patch"
           git -C package/passwall apply "$GITHUB_WORKSPACE/patches/passwall/0001-compat-iptables-legacy-packaging.patch"
-          ./scripts/feeds install -a
           test -f package/hysteria/Makefile
           grep -q '^  select PACKAGE_hysteria$' package/passwall/luci-app-passwall/Makefile
           grep -q '$(1)/usr/bin/hysteria' package/hysteria/Makefile
