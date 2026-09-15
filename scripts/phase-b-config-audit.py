@@ -79,17 +79,32 @@ for fake in (
     if fake in by_symbol:
         errors.append(f"nonexistent compatibility symbol survived defconfig: {fake}")
 
+forbidden_packages = {
+    "CONFIG_PACKAGE_luci-app-passwall2",
+    "CONFIG_PACKAGE_hysteria",
+    "CONFIG_PACKAGE_naiveproxy",
+    "CONFIG_PACKAGE_sing-box",
+    "CONFIG_PACKAGE_xray-core",
+    "CONFIG_PACKAGE_xray-plugin",
+    "CONFIG_PACKAGE_trojan-go",
+    "CONFIG_PACKAGE_shadow-tls",
+    "CONFIG_PACKAGE_simple-obfs-client",
+    "CONFIG_PACKAGE_v2ray-plugin",
+    "CONFIG_PACKAGE_v2ray-geoip",
+    "CONFIG_PACKAGE_v2ray-geosite",
+    "CONFIG_PACKAGE_shadowsocks-rust-sslocal",
+    "CONFIG_PACKAGE_shadowsocks-rust-ssserver",
+    "CONFIG_PACKAGE_shadowsocksr-libev-ssr-local",
+    "CONFIG_PACKAGE_shadowsocksr-libev-ssr-redir",
+    "CONFIG_PACKAGE_shadowsocksr-libev-ssr-server",
+    "CONFIG_PACKAGE_geoview",
+    "CONFIG_PACKAGE_haproxy",
+}
 for key, line in by_symbol.items():
     if line != f"{key}=y":
         continue
-    low = key.lower()
-    if any(name in low for name in (
-        "passwall2", "hysteria", "naiveproxy", "sing-box", "singbox",
-        "xray", "trojan-go", "trojan_go", "shadow-tls", "simple-obfs",
-        "v2ray-plugin", "v2ray-geodata", "v2ray-geoip", "v2ray-geosite",
-        "shadowsocks-rust", "shadowsocksr-libev", "geoview", "haproxy",
-    )):
-        errors.append(f"forbidden unrelated proxy selection: {key}")
+    if key in forbidden_packages:
+        errors.append(f"forbidden unrelated proxy package selected: {key}")
     if key in {
         "CONFIG_PACKAGE_firewall4", "CONFIG_PACKAGE_nftables",
         "CONFIG_PACKAGE_kmod-nft-socket", "CONFIG_PACKAGE_kmod-nft-tproxy",
