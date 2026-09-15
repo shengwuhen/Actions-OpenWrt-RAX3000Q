@@ -161,12 +161,12 @@ jobs:
         run: |
           set -o pipefail
           targets=(
-            package/passwall-packages/chinadns-ng/compile
-            package/passwall-packages/dns2socks/compile
-            package/passwall-packages/ipt2socks/compile
-            package/passwall-packages/microsocks/compile
-            package/passwall-packages/tcping/compile
-            package/passwall/luci-app-passwall/compile
+            package/chinadns-ng/compile
+            package/dns2socks/compile
+            package/ipt2socks/compile
+            package/microsocks/compile
+            package/tcping/compile
+            package/luci-app-passwall/compile
           )
           make -j"$(nproc)" "${targets[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/phase-b-results/build-passwall.log" || \
             make -j1 V=s "${targets[@]}" 2>&1 | tee -a "$GITHUB_WORKSPACE/phase-b-results/build-passwall.log"
