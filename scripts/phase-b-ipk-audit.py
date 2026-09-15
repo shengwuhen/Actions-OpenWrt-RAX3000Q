@@ -18,11 +18,31 @@ def ar_member(path, member):
     return subprocess.check_output(["ar", "p", str(path), member])
 
 
+def outer_member(path, stem):
+    """Read a control/data member from either ar or legacy tar-form IPKs."""
+    try:
+        names = ar_members(path)
+        member = next((name for name in names if name.startswith(stem + ".tar")), None)
+        if member:
+            return member, ar_member(path, member)
+    except (OSError, subprocess.CalledProcessError):
+        pass
+
+    # OpenWrt 21.02 can emit the historical gzip outer tar format:
+    # debian-binary + control.tar.* + data.tar.*.
+    with tarfile.open(path, mode="r:*") as archive:
+        member = next((item for item in archive.getmembers()
+                       if item.name.lstrip("./").startswith(stem + ".tar")), None)
+        if not member:
+            raise RuntimeError(f"no {stem} archive in {path}")
+        extracted = archive.extractfile(member)
+        if extracted is None:
+            raise RuntimeError(f"empty {stem} archive in {path}")
+        return member.name, extracted.read()
+
+
 def tar_members(path, stem):
-    member = next((name for name in ar_members(path) if name.startswith(stem + ".tar")), None)
-    if not member:
-        raise RuntimeError(f"no {stem} archive in {path}")
-    data = ar_member(path, member)
+    member, data = outer_member(path, stem)
     if member.endswith(".zst"):
         data = subprocess.check_output(["zstd", "-dc"], input=data)
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
@@ -133,7 +153,7 @@ for name in sorted(selected):
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     depends = metadata.get("Depends", "")
     if name.startswith("kmod-"):
-        match = re.search(r"kernel \(= ([^)]+)\)", depends)
+        match = re.search(r"kernel\s*\(=\s*([^)]+)\)", depends)
         if not match:
             errors.append(f"kernel ABI dependency missing from {name}")
         else:
