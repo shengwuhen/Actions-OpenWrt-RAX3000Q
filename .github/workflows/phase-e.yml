@@ -182,7 +182,7 @@ jobs:
           root_volume="$(find phase-e-results/ubi-extracted -type f -name '*vol-rootfs.ubifs' -print -quit)"
           test -n "$root_volume"
           set +e
-          unsquashfs \
+          sudo unsquashfs \
             -d phase-e-results/rootfs \
             "$root_volume" \
             >phase-e-results/unsquashfs.stdout.log \
@@ -213,8 +213,16 @@ jobs:
             --report phase-e-results/PHASE-E-AUDIT.md \
             --size-report phase-e-results/image-size-report.txt \
             --file-inventory phase-e-results/rootfs-critical-files.txt
-          rm -rf phase-e-results/rootfs phase-e-results/ubi-extracted
+          sudo rm -rf phase-e-results/rootfs phase-e-results/ubi-extracted
           df -h > phase-e-results/disk-usage.txt
+
+      - name: Remove extracted rootfs before artifact upload
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -d phase-e-results/rootfs ]; then
+            sudo rm -rf phase-e-results/rootfs
+          fi
 
       - name: Upload complete Phase E artifact
         if: always()
