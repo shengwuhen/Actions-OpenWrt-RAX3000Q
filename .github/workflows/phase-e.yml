@@ -181,7 +181,23 @@ jobs:
           ubireader_extract_images -o phase-e-results/ubi-extracted "$image"
           root_volume="$(find phase-e-results/ubi-extracted -type f -name '*vol-rootfs.ubifs' -print -quit)"
           test -n "$root_volume"
-          unsquashfs -d phase-e-results/rootfs "$root_volume"
+          set +e
+          unsquashfs \
+            -d phase-e-results/rootfs \
+            "$root_volume" \
+            >phase-e-results/unsquashfs.stdout.log \
+            2>phase-e-results/unsquashfs.stderr.log
+          unsquashfs_rc=$?
+          set -e
+          printf '%s\n' "$unsquashfs_rc" > phase-e-results/unsquashfs.exit-code.txt
+          echo '===== unsquashfs stdout ====='
+          cat phase-e-results/unsquashfs.stdout.log || true
+          echo '===== unsquashfs stderr ====='
+          cat phase-e-results/unsquashfs.stderr.log || true
+          echo "unsquashfs exit code: $unsquashfs_rc"
+          if [ "$unsquashfs_rc" -ne 0 ]; then
+            exit "$unsquashfs_rc"
+          fi
 
           grep -Eina 'warning:|error:|failed|undefined reference|recursive dependency|missing dependency' \
             phase-e-results/*.log > phase-e-results/warnings-errors-summary.txt || true
